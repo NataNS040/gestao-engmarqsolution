@@ -51,10 +51,10 @@ export default function SellersPage() {
             : Number(input.percentual_padrao),
       };
       if (input.id) {
-        const { error } = await supabase.from("sellers").update(payload).eq("id", input.id);
+        const { error } = await supabase.from("sellers").update(payload as any).eq("id", input.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("sellers").insert(payload);
+        const { error } = await supabase.from("sellers").insert(payload as any);
         if (error) throw error;
       }
     },

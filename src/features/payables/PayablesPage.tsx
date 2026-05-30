@@ -93,10 +93,10 @@ export default function PayablesPage() {
       };
       delete (payload as Record<string, unknown>)["financial_categories"];
       if (input.id) {
-        const { error } = await supabase.from("payables").update(payload).eq("id", input.id);
+        const { error } = await supabase.from("payables").update(payload as any).eq("id", input.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("payables").insert(payload);
+        const { error } = await supabase.from("payables").insert(payload as any);
         if (error) throw error;
       }
     },

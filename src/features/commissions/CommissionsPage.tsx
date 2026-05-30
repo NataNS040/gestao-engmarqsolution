@@ -120,7 +120,7 @@ export default function CommissionsPage() {
         p_vendedor_id: vendedorId, p_inicio: range.inicio, p_fim: range.fim,
       });
       if (error) throw error;
-      return data as PreviewResult;
+      return data as unknown as PreviewResult;
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });

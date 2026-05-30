@@ -180,9 +180,9 @@ async function fetchReport(type: ReportType, inicio: string, fim: string): Promi
   if (type === "contracts") {
     const { data, error } = await supabase
       .from("contracts")
-      .select("data_assinatura, servico, valor_bruto, valor_imposto, valor_liquido, status, companies(razao_social), sellers(nome)")
-      .gte("data_assinatura", inicio).lte("data_assinatura", fim)
-      .order("data_assinatura");
+      .select("data_venda, servico, valor_bruto, valor_imposto, valor_liquido, status, companies(razao_social), sellers(nome)")
+      .gte("data_venda", inicio).lte("data_venda", fim)
+      .order("data_venda");
     if (error) throw error;
     return (data ?? []).map((r: Row) => ({
       ...r,
@@ -221,7 +221,7 @@ function columnsFor(type: ReportType): ColumnSpec[] {
     { key: "status",          header: "Status" },
   ];
   if (type === "contracts") return [
-    { key: "data_assinatura", header: "Assinatura", format: (v) => formatDate(v as string) },
+    { key: "data_venda",      header: "Venda",      format: (v) => formatDate(v as string) },
     { key: "empresa",         header: "Empresa" },
     { key: "servico",         header: "Serviço" },
     { key: "vendedor",        header: "Vendedor" },

@@ -60,13 +60,13 @@ export default function CompaniesPage() {
       if (payload.cnpj) payload.cnpj = payload.cnpj.replace(/\D/g, "");
 
       if (input.id) {
-        const { error } = await supabase.from("companies").update(payload).eq("id", input.id);
+        const { error } = await supabase.from("companies").update(payload as any).eq("id", input.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("companies").insert({
           ...payload,
           created_by: profile?.id,
-        });
+        } as any);
         if (error) throw error;
       }
     },

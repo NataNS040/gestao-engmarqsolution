@@ -185,7 +185,7 @@ export default function ContractsPage() {
           f.forma_pagamento === "personalizado" ? f.parcelas_personalizadas : null,
         observacoes: f.observacoes || null,
         created_by: profile?.id,
-      });
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {

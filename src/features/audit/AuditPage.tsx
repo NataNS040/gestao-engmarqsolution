@@ -48,7 +48,7 @@ export default function AuditPage() {
         .order("criado_em", { ascending: false })
         .limit(500);
       if (tabela) q = q.eq("tabela", tabela);
-      if (acao) q = q.eq("acao", acao);
+      if (acao) q = q.eq("acao", acao as any);
       if (email) q = q.ilike("user_email", `%${email}%`);
       const { data, error } = await q;
       if (error) throw error;
