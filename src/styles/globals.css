@@ -1,0 +1,62 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Brand → shadcn tokens (HSL sem hsl()) */
+    --background: 0 0% 100%;
+    --foreground: 215 25% 17%; /* #1f2937 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 17%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 17%;
+
+    --primary: 213 56% 24%; /* #1a365d navy */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 35 91% 55%; /* #f5a623 amber */
+    --secondary-foreground: 213 56% 24%;
+
+    --muted: 210 40% 98%; /* #f8fafc */
+    --muted-foreground: 215 14% 47%; /* #6b7280 */
+
+    --accent: 35 91% 55%;
+    --accent-foreground: 213 56% 24%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%; /* #e5e7eb */
+    --input: 220 13% 91%;
+    --ring: 35 91% 55%; /* foco amarelo conforme manual */
+
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+  }
+}
