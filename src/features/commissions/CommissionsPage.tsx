@@ -160,18 +160,24 @@ export default function CommissionsPage() {
           created_by: profile?.id,
         }).select("id").single();
         if (e1) throw e1;
+        if (!ap) throw new Error("Falha ao criar conta a pagar");
         payable_id = ap.id;
       }
 
-      const { error } = await supabase.from("commission_payments").insert({
+      const { data: cp, error } = await supabase.from("commission_payments").insert({
         calculation_id: paying.id,
         valor_pago: valor,
         data_pagamento: payDate,
         responsavel_id: profile?.id,
         payable_id,
         observacoes: payObs || null,
-      });
+      }).select("id").single();
       if (error) throw error;
+
+      // Vincula a conta a pagar ao pagamento de comissão criado
+      if (payable_id && cp?.id) {
+        await supabase.from("payables").update({ commission_payment_id: cp.id }).eq("id", payable_id);
+      }
     },
     onSuccess: () => {
       toast.success("Pagamento de comissão registrado.");
@@ -179,7 +185,15 @@ export default function CommissionsPage() {
       qc.invalidateQueries({ queryKey: ["payables"] });
       setPaying(null);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+    onError: (e: unknown) => {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : typeof e === "object" && e !== null && "message" in e
+            ? String((e as { message: string }).message)
+            : "Erro ao registrar pagamento de comissão";
+      toast.error(msg);
+    },
   });
 
   const filteredHistory = useMemo(() => {
