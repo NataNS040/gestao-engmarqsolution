@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileText } from "lucide-react";
+import { FileText, Eye } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,9 @@ export default function InvoicesPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
   const [emitting, setEmitting] = useState<InvoiceRow | null>(null);
+  const [viewing, setViewing] = useState<InvoiceRow | null>(null);
   const [numero, setNumero] = useState("");
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
   const [obs, setObs] = useState("");
@@ -55,10 +57,22 @@ export default function InvoicesPage() {
   const filtered = useMemo(
     () => rows.filter((r) =>
       (statusFilter ? r.status === statusFilter : true) &&
+      (companyFilter ? r.company_id === companyFilter : true) &&
       matchesMonth(r.data_emissao, monthFilter)
     ),
-    [rows, statusFilter, monthFilter]
+    [rows, statusFilter, monthFilter, companyFilter]
   );
+
+  const companyOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    rows.forEach((r) => {
+      if (r.company_id && r.companies?.razao_social) {
+        map.set(r.company_id, r.companies.razao_social);
+      }
+    });
+    return Array.from(map, ([id, nome]) => ({ id, nome }))
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
 
   const totals = rows.reduce(
     (acc, r) => {
@@ -131,6 +145,15 @@ export default function InvoicesPage() {
             <option value="emitida">Emitidas</option>
           </Select>
         </div>
+        <div className="space-y-1.5 min-w-[220px]">
+          <Label>Empresa</Label>
+          <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}>
+            <option value="">Todas</option>
+            {companyOptions.map((c) => (
+              <option key={c.id} value={c.id}>{c.nome}</option>
+            ))}
+          </Select>
+        </div>
         <MonthFilter value={monthFilter} onChange={setMonthFilter} label="Emissão (mês)" />
       </div>
 
@@ -150,6 +173,16 @@ export default function InvoicesPage() {
           { key: "numero", header: "Nº NF", cell: (r) => r.numero_nf ?? "—" },
           { key: "data", header: "Emissão", cell: (r) => formatDate(r.data_emissao) },
           { key: "status", header: "Status", cell: (r) => <StatusBadge kind="invoice" value={r.status} /> },
+          { key: "obs", header: "Obs.", className: "w-12", cell: (r) =>
+            r.observacoes ? (
+              <Button
+                size="icon" variant="ghost" title="Ver observação"
+                onClick={() => setViewing(r)}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            ) : null
+          },
           { key: "acoes", header: "", className: "w-40 text-right", cell: (r) => (
             r.status === "nao_emitida" ? (
               <Button size="sm" variant="primary" onClick={() => openEmit(r)}>
@@ -194,6 +227,25 @@ export default function InvoicesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Observação da nota fiscal</DialogTitle>
+            {viewing && (
+              <DialogDescription>
+                {viewing.companies?.razao_social} — {formatMoney(viewing.valor)}
+                {viewing.numero_nf ? ` — NF ${viewing.numero_nf}` : ""}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <p className="whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-3 text-sm text-navy">
+            {viewing?.observacoes || "Sem observações."}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewing(null)}>Fechar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

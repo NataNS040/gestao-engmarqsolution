@@ -1,41 +1,41 @@
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-
-const MESES = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-];
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 
 interface Props {
   value: string;
   onChange: (v: string) => void;
   label?: string;
-  /** Quantos anos para frente/atrás listar (default: 2). */
-  range?: number;
 }
 
 /**
- * Filtro de mês/ano no formato "YYYY-MM" (ou string vazia = "todos").
+ * Filtro de mês/ano usando input nativo type="month" (calendário do navegador).
+ * Valor no formato "YYYY-MM" (string vazia = "todos").
  */
-export function MonthFilter({ value, onChange, label = "Mês", range = 2 }: Props) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const options: { value: string; label: string }[] = [];
-  for (let y = year + range; y >= year - range; y--) {
-    for (let m = 11; m >= 0; m--) {
-      const v = `${y}-${String(m + 1).padStart(2, "0")}`;
-      options.push({ value: v, label: `${MESES[m]}/${y}` });
-    }
-  }
+export function MonthFilter({ value, onChange, label = "Mês" }: Props) {
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
-      <Select value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Todos</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </Select>
+      <div className="flex items-center gap-2">
+        <Input
+          type="month"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-44"
+        />
+        {value && (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            title="Limpar filtro"
+            onClick={() => onChange("")}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
