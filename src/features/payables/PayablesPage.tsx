@@ -132,6 +132,7 @@ export default function PayablesPage() {
     onSuccess: (_d, row) => {
       toast.success(row.status === "pago" ? "Marcada como pendente." : "Marcada como paga.");
       qc.invalidateQueries({ queryKey: ["payables"] });
+      qc.invalidateQueries({ queryKey: ["commissions", "history"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
