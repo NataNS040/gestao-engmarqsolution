@@ -68,7 +68,7 @@ begin
   select comissao_calculada into v_total
     from public.commission_calculations where id = v_calc_id;
   update public.commission_calculations
-     set status = case when v_paid >= v_total then 'pago' else 'pendente' end
+     set status = (case when v_paid >= v_total then 'pago' else 'pendente' end)::public.commission_status
    where id = v_calc_id;
   return coalesce(new, old);
 end;
