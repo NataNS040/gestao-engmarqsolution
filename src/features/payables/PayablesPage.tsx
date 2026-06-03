@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, CheckCircle2 } from "lucide-react";
+import { Plus, Pencil, Trash2, CheckCircle2, Circle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/features/auth/AuthContext";
 import { formatMoney, formatDate } from "@/lib/format";
@@ -119,17 +119,21 @@ export default function PayablesPage() {
     },
   });
 
-  const markPaid = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("payables").update({
-        data_pagamento: new Date().toISOString().slice(0, 10),
-      }).eq("id", id);
+  const togglePaid = useMutation({
+    mutationFn: async (row: Payable) => {
+      const isPaid = row.status === "pago";
+      const { error } = await supabase.from("payables").update(
+        isPaid
+          ? { data_pagamento: null, status: "pendente" }
+          : { data_pagamento: new Date().toISOString().slice(0, 10) }
+      ).eq("id", row.id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Marcada como paga.");
+    onSuccess: (_d, row) => {
+      toast.success(row.status === "pago" ? "Marcada como pendente." : "Marcada como paga.");
       qc.invalidateQueries({ queryKey: ["payables"] });
     },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
   return (
@@ -179,11 +183,16 @@ export default function PayablesPage() {
           { key: "status", header: "Status", cell: (r) => <StatusBadge kind="payable" value={r.status} /> },
           { key: "acoes", header: "", className: "w-40 text-right", cell: (r) => (
             <div className="flex justify-end gap-1">
-              {r.status !== "pago" && (
-                <Button size="icon" variant="ghost" title="Marcar paga" onClick={() => markPaid.mutate(r.id)}>
-                  <CheckCircle2 className="h-4 w-4 text-success" />
-                </Button>
-              )}
+              <Button
+                size="icon"
+                variant="ghost"
+                title={r.status === "pago" ? "Desmarcar pagamento" : "Marcar paga"}
+                onClick={() => togglePaid.mutate(r)}
+              >
+                {r.status === "pago"
+                  ? <Circle className="h-4 w-4 text-muted-foreground" />
+                  : <CheckCircle2 className="h-4 w-4 text-success" />}
+              </Button>
               <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setOpen(true); }}>
                 <Pencil className="h-4 w-4" />
               </Button>

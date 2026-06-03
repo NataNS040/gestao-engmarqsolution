@@ -30,7 +30,7 @@ interface Contract {
   data_inicio: string | null;
   data_conclusao_prevista: string | null;
   status: "em_andamento" | "concluido" | "cancelado";
-  forma_pagamento: "a_vista" | "50_50" | "2x" | "3x" | "personalizado";
+  forma_pagamento: "a_vista" | "50_50" | "2x" | "3x" | "12x" | "personalizado";
   modelo_emissao_nf: "por_parcela" | "encerramento";
   parcelas_personalizadas: { valor: number; data: string }[] | null;
   observacoes: string | null;
@@ -95,8 +95,9 @@ function previewParcels(form: FormState) {
       ];
     }
     case "2x":
-    case "3x": {
-      const total = form.forma_pagamento === "2x" ? 2 : 3;
+    case "3x":
+    case "12x": {
+      const total = form.forma_pagamento === "2x" ? 2 : form.forma_pagamento === "3x" ? 3 : 12;
       const v = round2(form.valor_bruto / total);
       const last = round2(form.valor_bruto - v * (total - 1));
       return Array.from({ length: total }, (_, i) => ({
@@ -368,6 +369,7 @@ function ContractForm({
             <option value="50_50">50/50</option>
             <option value="2x">2 parcelas</option>
             <option value="3x">3 parcelas</option>
+            <option value="12x">Assessoria (12x mensal)</option>
             <option value="personalizado">Personalizado</option>
           </Select>
         </div>
