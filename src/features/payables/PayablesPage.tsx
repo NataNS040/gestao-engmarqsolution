@@ -181,18 +181,27 @@ export default function PayablesPage() {
           { key: "valor", header: "Valor", cell: (r) => formatMoney(r.valor), className: "text-right" },
           { key: "pgto", header: "Pago em", cell: (r) => formatDate(r.data_pagamento) },
           { key: "status", header: "Status", cell: (r) => <StatusBadge kind="payable" value={r.status} /> },
-          { key: "acoes", header: "", className: "w-40 text-right", cell: (r) => (
+          { key: "acoes", header: "", className: "w-56 text-right", cell: (r) => (
             <div className="flex justify-end gap-1">
-              <Button
-                size="icon"
-                variant="ghost"
-                title={r.status === "pago" ? "Desmarcar pagamento" : "Marcar paga"}
-                onClick={() => togglePaid.mutate(r)}
-              >
-                {r.status === "pago"
-                  ? <Circle className="h-4 w-4 text-muted-foreground" />
-                  : <CheckCircle2 className="h-4 w-4 text-success" />}
-              </Button>
+              {r.status === "pago" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Desmarcar pagamento"
+                  onClick={() => togglePaid.mutate(r)}
+                >
+                  <Circle className="h-4 w-4" /> Desmarcar
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  title="Marcar como paga"
+                  onClick={() => togglePaid.mutate(r)}
+                >
+                  <CheckCircle2 className="h-4 w-4" /> Marcar como paga
+                </Button>
+              )}
               <Button size="icon" variant="ghost" onClick={() => { setEditing(r); setOpen(true); }}>
                 <Pencil className="h-4 w-4" />
               </Button>

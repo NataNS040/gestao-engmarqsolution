@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Calculator, CheckCircle2, History } from "lucide-react";
+import { Calculator, CheckCircle2, History, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/features/auth/AuthContext";
 import { formatMoney, formatDate, formatPercent } from "@/lib/format";
@@ -136,6 +136,19 @@ export default function CommissionsPage() {
       toast.success("Fechamento gravado.");
       qc.invalidateQueries({ queryKey: ["commissions", "history"] });
       preview.reset();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
+  const removeCalc = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("commission_calculations").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Fechamento removido.");
+      qc.invalidateQueries({ queryKey: ["commissions", "history"] });
+      qc.invalidateQueries({ queryKey: ["payables"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
@@ -292,6 +305,17 @@ export default function CommissionsPage() {
                         setPayCreateAp(true); setPayObs("");
                       }}>
                       <CheckCircle2 className="h-4 w-4" /> Pagar
+                    </Button>
+                  )}
+                  {isFin && r.status === "pendente" && (
+                    <Button
+                      size="icon" variant="ghost" title="Excluir fechamento"
+                      onClick={() =>
+                        confirm("Excluir este fechamento de comissão? Pagamentos vinculados serão removidos.") &&
+                        removeCalc.mutate(r.id)
+                      }
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   )}
                 </div>
