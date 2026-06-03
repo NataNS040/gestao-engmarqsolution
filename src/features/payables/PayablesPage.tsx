@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { PageHeader, DataTable } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { MonthFilter, matchesMonth } from "@/components/shared/MonthFilter";
 
 interface Payable {
   id: string;
@@ -44,6 +45,7 @@ export default function PayablesPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Payable> | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
+  const [monthFilter, setMonthFilter] = useState("");
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["payables"],
@@ -68,8 +70,11 @@ export default function PayablesPage() {
   });
 
   const filtered = useMemo(
-    () => (statusFilter ? rows.filter((r) => r.status === statusFilter) : rows),
-    [rows, statusFilter]
+    () => rows.filter((r) =>
+      (statusFilter ? r.status === statusFilter : true) &&
+      matchesMonth(r.data_vencimento, monthFilter)
+    ),
+    [rows, statusFilter, monthFilter]
   );
 
   const totals = rows.reduce(
@@ -155,7 +160,7 @@ export default function PayablesPage() {
         <Summary label="Pago"     value={totals.pago} tone="success" />
       </div>
 
-      <div className="flex items-end gap-3">
+      <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
           <Label>Filtrar</Label>
           <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -165,6 +170,7 @@ export default function PayablesPage() {
             <option value="pago">Pagas</option>
           </Select>
         </div>
+        <MonthFilter value={monthFilter} onChange={setMonthFilter} label="Vencimento (mês)" />
       </div>
 
       <DataTable<Payable>

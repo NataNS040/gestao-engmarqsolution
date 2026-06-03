@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { PageHeader, DataTable } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { MonthFilter, matchesMonth } from "@/components/shared/MonthFilter";
 
 interface ReceivableRow {
   id: string;
@@ -40,6 +41,7 @@ export default function ReceivablesPage() {
   const contractFilter = searchParams.get("contrato");
 
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [monthFilter, setMonthFilter] = useState<string>("");
   const [paying, setPaying] = useState<ReceivableRow | null>(null);
   const [payValue, setPayValue] = useState("");
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
@@ -61,8 +63,11 @@ export default function ReceivablesPage() {
   });
 
   const filtered = useMemo(
-    () => (statusFilter ? rows.filter((r) => r.status === statusFilter) : rows),
-    [rows, statusFilter]
+    () => rows.filter((r) =>
+      (statusFilter ? r.status === statusFilter : true) &&
+      matchesMonth(r.data_prevista, monthFilter)
+    ),
+    [rows, statusFilter, monthFilter]
   );
 
   const totals = useMemo(() => {
@@ -125,7 +130,7 @@ export default function ReceivablesPage() {
         <SummaryCard label="Vencido"   value={totals.vencido} variant="danger" />
       </div>
 
-      <div className="flex items-end gap-3">
+      <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
           <Label>Filtrar por status</Label>
           <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -136,6 +141,7 @@ export default function ReceivablesPage() {
             <option value="vencido">Vencido</option>
           </Select>
         </div>
+        <MonthFilter value={monthFilter} onChange={setMonthFilter} label="Vencimento (mês)" />
       </div>
 
       <DataTable<ReceivableRow>

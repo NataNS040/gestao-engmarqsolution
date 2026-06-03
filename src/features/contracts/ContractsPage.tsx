@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { PageHeader, DataTable } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { MonthFilter, matchesMonth } from "@/components/shared/MonthFilter";
 
 interface Contract {
   id: string;
@@ -120,6 +121,7 @@ export default function ContractsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState | null>(null);
+  const [monthFilter, setMonthFilter] = useState("");
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["contracts"],
@@ -220,9 +222,13 @@ export default function ContractsPage() {
         )}
       />
 
+      <div className="flex flex-wrap items-end gap-3">
+        <MonthFilter value={monthFilter} onChange={setMonthFilter} label="Venda (mês)" />
+      </div>
+
       <DataTable<ContractRow>
         loading={isLoading}
-        rows={rows}
+        rows={rows.filter((r) => matchesMonth(r.data_venda, monthFilter))}
         columns={[
           { key: "empresa", header: "Empresa", cell: (r) => (
             <div>

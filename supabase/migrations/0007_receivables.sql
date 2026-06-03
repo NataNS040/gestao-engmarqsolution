@@ -149,8 +149,8 @@ begin
       (gen_random_uuid(), c.id, c.company_id, 2, 2, v_resto, 0, v_base_date + interval '30 day', null, 'pendente', null, now(), now());
     return 2;
 
-  elsif c.forma_pagamento in ('2x','3x') then
-    v_total := case c.forma_pagamento when '2x' then 2 when '3x' then 3 end;
+  elsif c.forma_pagamento in ('2x','3x','12x') then
+    v_total := case c.forma_pagamento when '2x' then 2 when '3x' then 3 when '12x' then 12 end;
     v_valor := round(c.valor_bruto / v_total, 2);
     v_resto := c.valor_bruto - v_valor * (v_total - 1); -- última parcela absorve diferença
     for v_idx in 1..v_total loop

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { PageHeader, DataTable } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { MonthFilter, matchesMonth } from "@/components/shared/MonthFilter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface SellerLite { id: string; nome: string }
@@ -90,6 +91,7 @@ export default function CommissionsPage() {
   const [payObs, setPayObs] = useState("");
   // Histórico detalhado
   const [viewing, setViewing] = useState<CommissionCalc | null>(null);
+  const [monthFilter, setMonthFilter] = useState("");
 
   const { data: sellers = [] } = useQuery({
     queryKey: ["sellers", "lite"],
@@ -210,11 +212,15 @@ export default function CommissionsPage() {
   });
 
   const filteredHistory = useMemo(() => {
+    let list = history;
     if (profile?.role === "comercial" && profile.seller_id) {
-      return history.filter((h) => h.vendedor_id === profile.seller_id);
+      list = list.filter((h) => h.vendedor_id === profile.seller_id);
     }
-    return history;
-  }, [history, profile]);
+    if (monthFilter) {
+      list = list.filter((h) => matchesMonth(h.periodo_inicio, monthFilter));
+    }
+    return list;
+  }, [history, profile, monthFilter]);
 
   return (
     <div className="space-y-6">
@@ -280,6 +286,9 @@ export default function CommissionsPage() {
           <CardTitle>Histórico de fechamentos</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <MonthFilter value={monthFilter} onChange={setMonthFilter} label="Período (mês)" />
+          </div>
           <DataTable<CommissionCalc>
             loading={loadingHist}
             rows={filteredHistory}
