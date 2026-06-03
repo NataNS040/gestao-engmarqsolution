@@ -39,7 +39,7 @@ begin
      and (p.id is null or p.status = 'pago');
 
   update public.commission_calculations
-     set status = case when v_paid >= v_total and v_total > 0 then 'pago' else 'pendente' end
+     set status = (case when v_paid >= v_total and v_total > 0 then 'pago' else 'pendente' end)::public.commission_status
    where id = v_calc_id;
 
   return new;
