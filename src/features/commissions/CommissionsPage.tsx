@@ -417,7 +417,7 @@ function PreviewBlock({
     queryFn: async (): Promise<PaymentEntry[]> => {
       const { data: contracts, error: ce } = await supabase
         .from("contracts")
-        .select("id, servico, valor_bruto, valor_liquido, companies(razao_social, nome_fantasia)")
+        .select("id, servico, valor_bruto, valor_liquido")
         .eq("vendedor_id", data.vendedor_id);
       if (ce) throw ce;
       const contractIds = (contracts ?? []).map((c) => c.id);
@@ -425,16 +425,17 @@ function PreviewBlock({
 
       const { data: receivables, error: re } = await supabase
         .from("receivables")
-        .select("id, numero_parcela, total_parcelas, contract_id")
+        .select("id, numero_parcela, total_parcelas, contract_id, companies(razao_social, nome_fantasia)")
         .in("contract_id", contractIds);
       if (re) throw re;
       const receivableIds = (receivables ?? []).map((r) => r.id);
       if (!receivableIds.length) return [];
 
-      const receivableMap = new Map((receivables ?? []).map((r) => [r.id, r]));
-      const contractMap = new Map(
-        (contracts ?? []).map((c) => [c.id, c as typeof c & { companies: { razao_social: string; nome_fantasia: string | null } | null }])
-      );
+      type RcvRow = NonNullable<typeof receivables>[number] & {
+        companies: { razao_social: string; nome_fantasia: string | null } | null;
+      };
+      const receivableMap = new Map((receivables ?? []).map((r) => [r.id, r as RcvRow]));
+      const contractMap = new Map((contracts ?? []).map((c) => [c.id, c]));
 
       const { data: payments, error: pe } = await supabase
         .from("receivable_payments")
@@ -457,7 +458,12 @@ function PreviewBlock({
             ? { numero_parcela: rcv.numero_parcela, total_parcelas: rcv.total_parcelas, contract_id: rcv.contract_id }
             : undefined,
           contract: contract
-            ? { servico: contract.servico, valor_bruto: contract.valor_bruto, valor_liquido: contract.valor_liquido, companies: contract.companies }
+            ? {
+                servico: contract.servico,
+                valor_bruto: contract.valor_bruto,
+                valor_liquido: contract.valor_liquido,
+                companies: rcv?.companies ?? null,
+              }
             : undefined,
         };
       });
