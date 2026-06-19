@@ -54,18 +54,17 @@ interface PreviewResult {
 
 type Periodo = "quinzena_1" | "quinzena_2" | "mes" | "personalizado";
 
-interface PaymentEntry {
+interface RecvEntry {
   id: string;
-  data: string;
-  valor: number;
-  receivable_id: string;
-  receivable?: { numero_parcela: number; total_parcelas: number; contract_id: string };
-  contract?: {
-    servico: string;
-    valor_bruto: number;
-    valor_liquido: number;
-    companies: { razao_social: string; nome_fantasia: string | null } | null;
-  };
+  data_recebimento: string;
+  valor_recebido: number;
+  numero_parcela: number;
+  total_parcelas: number;
+  contract_id: string;
+  servico: string;
+  valor_bruto: number;
+  valor_liquido: number;
+  company: { razao_social: string; nome_fantasia: string | null } | null;
 }
 
 function rangeFromPeriodo(periodo: Periodo, ref: string): { inicio: string; fim: string } {
@@ -411,10 +410,10 @@ function PreviewBlock({
 }: { data: PreviewResult; onClose?: () => void; closing?: boolean; readOnly?: boolean }) {
   const [showRecv, setShowRecv] = useState(false);
 
-  const { data: paymentEntries = [], isLoading: loadingEntries } = useQuery({
+  const { data: recvEntries = [], isLoading: loadingEntries } = useQuery({
     queryKey: ["commission-recv-detail", data.vendedor_id, data.periodo_inicio, data.periodo_fim],
     enabled: showRecv && !!data.vendedor_id,
-    queryFn: async (): Promise<PaymentEntry[]> => {
+    queryFn: async (): Promise<RecvEntry[]> => {
       // 1. Contratos do vendedor
       const { data: contracts, error: ce } = await supabase
         .from("contracts")
@@ -424,70 +423,51 @@ function PreviewBlock({
       const contractIds = (contracts ?? []).map((c) => c.id);
       if (!contractIds.length) return [];
 
-      // 2. Recebíveis desses contratos
+      // 2. Recebíveis efetivamente recebidos no período (filtra por data_recebimento)
       const { data: receivables, error: re } = await supabase
         .from("receivables")
-        .select("id, numero_parcela, total_parcelas, contract_id, company_id")
-        .in("contract_id", contractIds);
+        .select("id, numero_parcela, total_parcelas, contract_id, company_id, valor_recebido, data_recebimento")
+        .in("contract_id", contractIds)
+        .gt("valor_recebido", 0)
+        .not("data_recebimento", "is", null)
+        .gte("data_recebimento", data.periodo_inicio)
+        .lte("data_recebimento", data.periodo_fim)
+        .order("data_recebimento");
       if (re) throw re;
-      const receivableIds = (receivables ?? []).map((r) => r.id);
-      if (!receivableIds.length) return [];
+      if (!(receivables ?? []).length) return [];
 
-      // 3. Empresas — busca direta por ID (sem join embutido)
-      const companyIds = [...new Set([
-        ...(contracts ?? []).map((c) => c.company_id),
-        ...(receivables ?? []).map((r) => r.company_id),
-      ].filter(Boolean))];
+      // 3. Empresas — busca direta por ID
+      const companyIds = [...new Set((receivables ?? []).map((r) => r.company_id).filter(Boolean))];
       const { data: companiesData } = await supabase
         .from("companies")
         .select("id, razao_social, nome_fantasia")
         .in("id", companyIds);
       const companyMap = new Map((companiesData ?? []).map((c) => [c.id, c]));
-
-      // 4. Pagamentos no período
-      const { data: payments, error: pe } = await supabase
-        .from("receivable_payments")
-        .select("id, data, valor, receivable_id")
-        .in("receivable_id", receivableIds)
-        .gte("data", data.periodo_inicio)
-        .lte("data", data.periodo_fim)
-        .order("data");
-      if (pe) throw pe;
-
-      const receivableMap = new Map((receivables ?? []).map((r) => [r.id, r]));
       const contractMap = new Map((contracts ?? []).map((c) => [c.id, c]));
 
-      return (payments ?? []).map((p) => {
-        const rcv = receivableMap.get(p.receivable_id);
-        const contract = rcv ? contractMap.get(rcv.contract_id) : undefined;
-        // Prefere company_id do recebível, cai para o do contrato
-        const companyId = rcv?.company_id ?? contract?.company_id;
-        const company = companyId ? companyMap.get(companyId) ?? null : null;
+      return (receivables ?? []).map((r) => {
+        const contract = contractMap.get(r.contract_id);
+        const company = r.company_id ? (companyMap.get(r.company_id) ?? null) : null;
         return {
-          id: p.id,
-          data: p.data,
-          valor: p.valor,
-          receivable_id: p.receivable_id,
-          receivable: rcv
-            ? { numero_parcela: rcv.numero_parcela, total_parcelas: rcv.total_parcelas, contract_id: rcv.contract_id }
-            : undefined,
-          contract: contract
-            ? {
-                servico: contract.servico,
-                valor_bruto: contract.valor_bruto,
-                valor_liquido: contract.valor_liquido,
-                companies: company,
-              }
-            : undefined,
+          id: r.id,
+          data_recebimento: r.data_recebimento as string,
+          valor_recebido: r.valor_recebido,
+          numero_parcela: r.numero_parcela,
+          total_parcelas: r.total_parcelas,
+          contract_id: r.contract_id,
+          servico: contract?.servico ?? "—",
+          valor_bruto: contract?.valor_bruto ?? 0,
+          valor_liquido: contract?.valor_liquido ?? 0,
+          company,
         };
       });
     },
   });
 
-  const valorLiquidoEntry = (p: PaymentEntry) =>
-    p.contract && p.contract.valor_bruto > 0
-      ? p.valor * (p.contract.valor_liquido / p.contract.valor_bruto)
-      : p.valor;
+  const valorLiquidoEntry = (r: RecvEntry) =>
+    r.valor_bruto > 0
+      ? r.valor_recebido * (r.valor_liquido / r.valor_bruto)
+      : r.valor_recebido;
 
   return (
     <div className="space-y-4 rounded-lg border-2 border-navy/15 bg-navy/5 p-5">
@@ -544,7 +524,7 @@ function PreviewBlock({
           <div className="mt-3 overflow-x-auto rounded-md border border-border bg-white">
             {loadingEntries ? (
               <p className="p-4 text-sm text-muted-foreground">Carregando…</p>
-            ) : paymentEntries.length === 0 ? (
+            ) : recvEntries.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">Nenhum recebimento encontrado no período.</p>
             ) : (
               <table className="w-full text-sm">
@@ -553,32 +533,30 @@ function PreviewBlock({
                     <th className="px-3 py-2">Cliente</th>
                     <th className="px-3 py-2">Serviço</th>
                     <th className="px-3 py-2">Parcela</th>
-                    <th className="px-3 py-2">Data</th>
+                    <th className="px-3 py-2">Data Recebimento</th>
                     <th className="px-3 py-2 text-right">Valor Recebido</th>
                     <th className="px-3 py-2 text-right">Líquido</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paymentEntries.map((p) => (
-                    <tr key={p.id} className="border-b last:border-0 hover:bg-muted/10">
+                  {recvEntries.map((r) => (
+                    <tr key={r.id} className="border-b last:border-0 hover:bg-muted/10">
                       <td className="px-3 py-2 font-medium">
-                        {p.contract?.companies?.nome_fantasia ?? p.contract?.companies?.razao_social ?? "—"}
+                        {r.company?.nome_fantasia ?? r.company?.razao_social ?? "—"}
                       </td>
-                      <td className="px-3 py-2 text-muted-foreground">{p.contract?.servico ?? "—"}</td>
-                      <td className="px-3 py-2">
-                        {p.receivable ? `${p.receivable.numero_parcela}/${p.receivable.total_parcelas}` : "—"}
-                      </td>
-                      <td className="px-3 py-2">{formatDate(p.data)}</td>
-                      <td className="px-3 py-2 text-right">{formatMoney(p.valor)}</td>
-                      <td className="px-3 py-2 text-right font-semibold text-navy">{formatMoney(valorLiquidoEntry(p))}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{r.servico}</td>
+                      <td className="px-3 py-2">{r.numero_parcela}/{r.total_parcelas}</td>
+                      <td className="px-3 py-2">{formatDate(r.data_recebimento)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(r.valor_recebido)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-navy">{formatMoney(valorLiquidoEntry(r))}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="border-t bg-muted/20 text-xs font-semibold">
                   <tr>
                     <td colSpan={4} className="px-3 py-2 text-muted-foreground">Total</td>
-                    <td className="px-3 py-2 text-right">{formatMoney(paymentEntries.reduce((s, p) => s + p.valor, 0))}</td>
-                    <td className="px-3 py-2 text-right text-navy">{formatMoney(paymentEntries.reduce((s, p) => s + valorLiquidoEntry(p), 0))}</td>
+                    <td className="px-3 py-2 text-right">{formatMoney(recvEntries.reduce((s, r) => s + r.valor_recebido, 0))}</td>
+                    <td className="px-3 py-2 text-right text-navy">{formatMoney(recvEntries.reduce((s, r) => s + valorLiquidoEntry(r), 0))}</td>
                   </tr>
                 </tfoot>
               </table>
