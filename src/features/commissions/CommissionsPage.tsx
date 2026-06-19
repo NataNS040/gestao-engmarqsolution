@@ -415,28 +415,36 @@ function PreviewBlock({
     queryKey: ["commission-recv-detail", data.vendedor_id, data.periodo_inicio, data.periodo_fim],
     enabled: showRecv && !!data.vendedor_id,
     queryFn: async (): Promise<PaymentEntry[]> => {
+      // 1. Contratos do vendedor
       const { data: contracts, error: ce } = await supabase
         .from("contracts")
-        .select("id, servico, valor_bruto, valor_liquido")
+        .select("id, servico, valor_bruto, valor_liquido, company_id")
         .eq("vendedor_id", data.vendedor_id);
       if (ce) throw ce;
       const contractIds = (contracts ?? []).map((c) => c.id);
       if (!contractIds.length) return [];
 
+      // 2. Recebíveis desses contratos
       const { data: receivables, error: re } = await supabase
         .from("receivables")
-        .select("id, numero_parcela, total_parcelas, contract_id, companies(razao_social, nome_fantasia)")
+        .select("id, numero_parcela, total_parcelas, contract_id, company_id")
         .in("contract_id", contractIds);
       if (re) throw re;
       const receivableIds = (receivables ?? []).map((r) => r.id);
       if (!receivableIds.length) return [];
 
-      type RcvRow = NonNullable<typeof receivables>[number] & {
-        companies: { razao_social: string; nome_fantasia: string | null } | null;
-      };
-      const receivableMap = new Map((receivables ?? []).map((r) => [r.id, r as RcvRow]));
-      const contractMap = new Map((contracts ?? []).map((c) => [c.id, c]));
+      // 3. Empresas — busca direta por ID (sem join embutido)
+      const companyIds = [...new Set([
+        ...(contracts ?? []).map((c) => c.company_id),
+        ...(receivables ?? []).map((r) => r.company_id),
+      ].filter(Boolean))];
+      const { data: companiesData } = await supabase
+        .from("companies")
+        .select("id, razao_social, nome_fantasia")
+        .in("id", companyIds);
+      const companyMap = new Map((companiesData ?? []).map((c) => [c.id, c]));
 
+      // 4. Pagamentos no período
       const { data: payments, error: pe } = await supabase
         .from("receivable_payments")
         .select("id, data, valor, receivable_id")
@@ -446,9 +454,15 @@ function PreviewBlock({
         .order("data");
       if (pe) throw pe;
 
+      const receivableMap = new Map((receivables ?? []).map((r) => [r.id, r]));
+      const contractMap = new Map((contracts ?? []).map((c) => [c.id, c]));
+
       return (payments ?? []).map((p) => {
         const rcv = receivableMap.get(p.receivable_id);
         const contract = rcv ? contractMap.get(rcv.contract_id) : undefined;
+        // Prefere company_id do recebível, cai para o do contrato
+        const companyId = rcv?.company_id ?? contract?.company_id;
+        const company = companyId ? companyMap.get(companyId) ?? null : null;
         return {
           id: p.id,
           data: p.data,
@@ -462,7 +476,7 @@ function PreviewBlock({
                 servico: contract.servico,
                 valor_bruto: contract.valor_bruto,
                 valor_liquido: contract.valor_liquido,
-                companies: rcv?.companies ?? null,
+                companies: company,
               }
             : undefined,
         };
