@@ -54,6 +54,20 @@ interface PreviewResult {
 
 type Periodo = "quinzena_1" | "quinzena_2" | "mes" | "personalizado";
 
+interface PaymentEntry {
+  id: string;
+  data: string;
+  valor: number;
+  receivable_id: string;
+  receivable?: { numero_parcela: number; total_parcelas: number; contract_id: string };
+  contract?: {
+    servico: string;
+    valor_bruto: number;
+    valor_liquido: number;
+    companies: { razao_social: string; nome_fantasia: string | null } | null;
+  };
+}
+
 function rangeFromPeriodo(periodo: Periodo, ref: string): { inicio: string; fim: string } {
   const [y, m] = ref.split("-").map(Number);
   const last = new Date(y, m, 0).getDate();
@@ -395,6 +409,66 @@ export default function CommissionsPage() {
 function PreviewBlock({
   data, onClose, closing, readOnly,
 }: { data: PreviewResult; onClose?: () => void; closing?: boolean; readOnly?: boolean }) {
+  const [showRecv, setShowRecv] = useState(false);
+
+  const { data: paymentEntries = [], isLoading: loadingEntries } = useQuery({
+    queryKey: ["commission-recv-detail", data.vendedor_id, data.periodo_inicio, data.periodo_fim],
+    enabled: showRecv && !!data.vendedor_id,
+    queryFn: async (): Promise<PaymentEntry[]> => {
+      const { data: contracts, error: ce } = await supabase
+        .from("contracts")
+        .select("id, servico, valor_bruto, valor_liquido, companies(razao_social, nome_fantasia)")
+        .eq("vendedor_id", data.vendedor_id);
+      if (ce) throw ce;
+      const contractIds = (contracts ?? []).map((c) => c.id);
+      if (!contractIds.length) return [];
+
+      const { data: receivables, error: re } = await supabase
+        .from("receivables")
+        .select("id, numero_parcela, total_parcelas, contract_id")
+        .in("contract_id", contractIds);
+      if (re) throw re;
+      const receivableIds = (receivables ?? []).map((r) => r.id);
+      if (!receivableIds.length) return [];
+
+      const receivableMap = new Map((receivables ?? []).map((r) => [r.id, r]));
+      const contractMap = new Map(
+        (contracts ?? []).map((c) => [c.id, c as typeof c & { companies: { razao_social: string; nome_fantasia: string | null } | null }])
+      );
+
+      const { data: payments, error: pe } = await supabase
+        .from("receivable_payments")
+        .select("id, data, valor, receivable_id")
+        .in("receivable_id", receivableIds)
+        .gte("data", data.periodo_inicio)
+        .lte("data", data.periodo_fim)
+        .order("data");
+      if (pe) throw pe;
+
+      return (payments ?? []).map((p) => {
+        const rcv = receivableMap.get(p.receivable_id);
+        const contract = rcv ? contractMap.get(rcv.contract_id) : undefined;
+        return {
+          id: p.id,
+          data: p.data,
+          valor: p.valor,
+          receivable_id: p.receivable_id,
+          receivable: rcv
+            ? { numero_parcela: rcv.numero_parcela, total_parcelas: rcv.total_parcelas, contract_id: rcv.contract_id }
+            : undefined,
+          contract: contract
+            ? { servico: contract.servico, valor_bruto: contract.valor_bruto, valor_liquido: contract.valor_liquido, companies: contract.companies }
+            : undefined,
+        };
+      });
+    },
+  });
+
+  const valorLiquidoEntry = (p: PaymentEntry) =>
+    p.contract && p.contract.valor_bruto > 0
+      ? p.valor * (p.contract.valor_liquido / p.contract.valor_bruto)
+      : p.valor;
+
   return (
     <div className="space-y-4 rounded-lg border-2 border-navy/15 bg-navy/5 p-5">
       <div className="grid grid-cols-3 gap-4">
@@ -435,6 +509,63 @@ function PreviewBlock({
       ) : (
         <p className="text-sm text-muted-foreground">Nenhum recebimento no período.</p>
       )}
+
+      <div>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 text-sm font-medium text-navy hover:underline"
+          onClick={() => setShowRecv((v) => !v)}
+        >
+          <span>{showRecv ? "▾" : "▸"}</span>
+          Recebimentos no período (clientes)
+        </button>
+
+        {showRecv && (
+          <div className="mt-3 overflow-x-auto rounded-md border border-border bg-white">
+            {loadingEntries ? (
+              <p className="p-4 text-sm text-muted-foreground">Carregando…</p>
+            ) : paymentEntries.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground">Nenhum recebimento encontrado no período.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="border-b bg-muted/30 text-left text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2">Cliente</th>
+                    <th className="px-3 py-2">Serviço</th>
+                    <th className="px-3 py-2">Parcela</th>
+                    <th className="px-3 py-2">Data</th>
+                    <th className="px-3 py-2 text-right">Valor Recebido</th>
+                    <th className="px-3 py-2 text-right">Líquido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentEntries.map((p) => (
+                    <tr key={p.id} className="border-b last:border-0 hover:bg-muted/10">
+                      <td className="px-3 py-2 font-medium">
+                        {p.contract?.companies?.nome_fantasia ?? p.contract?.companies?.razao_social ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">{p.contract?.servico ?? "—"}</td>
+                      <td className="px-3 py-2">
+                        {p.receivable ? `${p.receivable.numero_parcela}/${p.receivable.total_parcelas}` : "—"}
+                      </td>
+                      <td className="px-3 py-2">{formatDate(p.data)}</td>
+                      <td className="px-3 py-2 text-right">{formatMoney(p.valor)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-navy">{formatMoney(valorLiquidoEntry(p))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t bg-muted/20 text-xs font-semibold">
+                  <tr>
+                    <td colSpan={4} className="px-3 py-2 text-muted-foreground">Total</td>
+                    <td className="px-3 py-2 text-right">{formatMoney(paymentEntries.reduce((s, p) => s + p.valor, 0))}</td>
+                    <td className="px-3 py-2 text-right text-navy">{formatMoney(paymentEntries.reduce((s, p) => s + valorLiquidoEntry(p), 0))}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
 
       {!readOnly && onClose && (
         <div className="flex justify-end">
