@@ -51,6 +51,9 @@ export default function ReceivablesPage() {
   const [editingDate, setEditingDate] = useState<ReceivableRow | null>(null);
   const [editDateVal, setEditDateVal] = useState("");
 
+  const [editingDue, setEditingDue] = useState<ReceivableRow | null>(null);
+  const [editDueVal, setEditDueVal] = useState("");
+
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["receivables", contractFilter],
     queryFn: async () => {
@@ -136,6 +139,23 @@ export default function ReceivablesPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
+  const updateDue = useMutation({
+    mutationFn: async () => {
+      if (!editingDue || !editDueVal) return;
+      const { error } = await supabase
+        .from("receivables")
+        .update({ data_prevista: editDueVal })
+        .eq("id", editingDue.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Data de vencimento atualizada.");
+      qc.invalidateQueries({ queryKey: ["receivables"] });
+      setEditingDue(null);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -175,7 +195,18 @@ export default function ReceivablesPage() {
             </div>
           )},
           { key: "parcela", header: "Parcela", cell: (r) => `${r.numero_parcela}/${r.total_parcelas}` },
-          { key: "prevista", header: "Vencimento", cell: (r) => formatDate(r.data_prevista) },
+          { key: "prevista", header: "Vencimento", cell: (r) => (
+            <div className="flex items-center gap-1">
+              <span>{formatDate(r.data_prevista)}</span>
+              <button
+                title="Editar data de vencimento"
+                className="text-muted-foreground hover:text-navy"
+                onClick={() => { setEditingDue(r); setEditDueVal(r.data_prevista); }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )},
           { key: "recebimento", header: "Recebimento", cell: (r) => (
             <div className="flex items-center gap-1">
               <span>{r.data_recebimento ? formatDate(r.data_recebimento) : "—"}</span>
@@ -279,6 +310,39 @@ export default function ReceivablesPage() {
               <Button type="button" variant="outline" onClick={() => setEditingDate(null)}>Cancelar</Button>
               <Button type="submit" variant="primary" disabled={updateDate.isPending}>
                 {updateDate.isPending ? "Salvando…" : "Atualizar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingDue} onOpenChange={(o) => !o && setEditingDue(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Alterar data de vencimento</DialogTitle>
+            {editingDue && (
+              <DialogDescription>
+                {editingDue.companies?.razao_social} — Parcela {editingDue.numero_parcela}/{editingDue.total_parcelas}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => { e.preventDefault(); updateDue.mutate(); }}
+          >
+            <div className="space-y-1.5">
+              <Label>Nova data de vencimento *</Label>
+              <Input
+                type="date"
+                required
+                value={editDueVal}
+                onChange={(e) => setEditDueVal(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditingDue(null)}>Cancelar</Button>
+              <Button type="submit" variant="primary" disabled={updateDue.isPending}>
+                {updateDue.isPending ? "Salvando…" : "Atualizar"}
               </Button>
             </DialogFooter>
           </form>
