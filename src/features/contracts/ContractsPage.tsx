@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Eye, Trash2 } from "lucide-react";
+import { Plus, Eye, Trash2, Pencil } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/features/auth/AuthContext";
 import { can } from "@/lib/permissions";
@@ -122,6 +122,8 @@ export default function ContractsPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState | null>(null);
   const [monthFilter, setMonthFilter] = useState("");
+  const [editDateRow, setEditDateRow] = useState<ContractRow | null>(null);
+  const [editDateVal, setEditDateVal] = useState("");
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["contracts"],
@@ -212,6 +214,23 @@ export default function ContractsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
+  const updateSaleDate = useMutation({
+    mutationFn: async () => {
+      if (!editDateRow || !editDateVal) return;
+      const { error } = await supabase
+        .from("contracts")
+        .update({ data_venda: editDateVal })
+        .eq("id", editDateRow.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Data da venda atualizada.");
+      qc.invalidateQueries({ queryKey: ["contracts"] });
+      setEditDateRow(null);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -248,6 +267,13 @@ export default function ContractsPage() {
               <a href={`/receber?contrato=${r.id}`} title="Ver parcelas">
                 <Button size="icon" variant="ghost"><Eye className="h-4 w-4" /></Button>
               </a>
+              <Button
+                size="icon" variant="ghost"
+                title="Alterar data da venda"
+                onClick={() => { setEditDateRow(r); setEditDateVal(r.data_venda); }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
               {can(role, "delete", "contracts") && (
                 <Button
                   size="icon" variant="ghost"
@@ -280,6 +306,39 @@ export default function ContractsPage() {
               saving={create.isPending}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editDateRow} onOpenChange={(o) => !o && setEditDateRow(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Alterar data da venda</DialogTitle>
+            {editDateRow && (
+              <DialogDescription>
+                {editDateRow.companies?.razao_social} — {editDateRow.servico}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => { e.preventDefault(); updateSaleDate.mutate(); }}
+          >
+            <div className="space-y-1.5">
+              <Label>Nova data da venda *</Label>
+              <Input
+                type="date"
+                required
+                value={editDateVal}
+                onChange={(e) => setEditDateVal(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditDateRow(null)}>Cancelar</Button>
+              <Button type="submit" variant="primary" disabled={updateSaleDate.isPending}>
+                {updateSaleDate.isPending ? "Salvando…" : "Atualizar"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Pencil } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/features/auth/AuthContext";
 import { formatMoney, formatDate } from "@/lib/format";
@@ -47,6 +47,9 @@ export default function ReceivablesPage() {
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
   const [payForm, setPayForm] = useState("PIX");
   const [payNotes, setPayNotes] = useState("");
+
+  const [editingDate, setEditingDate] = useState<ReceivableRow | null>(null);
+  const [editDateVal, setEditDateVal] = useState("");
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["receivables", contractFilter],
@@ -116,6 +119,23 @@ export default function ReceivablesPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
   });
 
+  const updateDate = useMutation({
+    mutationFn: async () => {
+      if (!editingDate || !editDateVal) return;
+      const { error } = await supabase
+        .from("receivables")
+        .update({ data_recebimento: editDateVal })
+        .eq("id", editingDate.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Data de recebimento atualizada.");
+      qc.invalidateQueries({ queryKey: ["receivables"] });
+      setEditingDate(null);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro"),
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -156,6 +176,20 @@ export default function ReceivablesPage() {
           )},
           { key: "parcela", header: "Parcela", cell: (r) => `${r.numero_parcela}/${r.total_parcelas}` },
           { key: "prevista", header: "Vencimento", cell: (r) => formatDate(r.data_prevista) },
+          { key: "recebimento", header: "Recebimento", cell: (r) => (
+            <div className="flex items-center gap-1">
+              <span>{r.data_recebimento ? formatDate(r.data_recebimento) : "—"}</span>
+              {r.data_recebimento && (
+                <button
+                  title="Editar data de recebimento"
+                  className="text-muted-foreground hover:text-navy"
+                  onClick={() => { setEditingDate(r); setEditDateVal(r.data_recebimento!); }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )},
           { key: "valor", header: "Previsto", cell: (r) => formatMoney(r.valor_previsto), className: "text-right" },
           { key: "recebido", header: "Recebido", cell: (r) => formatMoney(r.valor_recebido), className: "text-right" },
           { key: "status", header: "Status", cell: (r) => <StatusBadge kind="receivable" value={r.status} /> },
@@ -212,6 +246,39 @@ export default function ReceivablesPage() {
               <Button type="button" variant="outline" onClick={() => setPaying(null)}>Cancelar</Button>
               <Button type="submit" variant="primary" disabled={pay.isPending}>
                 {pay.isPending ? "Salvando…" : "Confirmar recebimento"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingDate} onOpenChange={(o) => !o && setEditingDate(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Alterar data de recebimento</DialogTitle>
+            {editingDate && (
+              <DialogDescription>
+                {editingDate.companies?.razao_social} — Parcela {editingDate.numero_parcela}/{editingDate.total_parcelas}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => { e.preventDefault(); updateDate.mutate(); }}
+          >
+            <div className="space-y-1.5">
+              <Label>Nova data de recebimento *</Label>
+              <Input
+                type="date"
+                required
+                value={editDateVal}
+                onChange={(e) => setEditDateVal(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditingDate(null)}>Cancelar</Button>
+              <Button type="submit" variant="primary" disabled={updateDate.isPending}>
+                {updateDate.isPending ? "Salvando…" : "Atualizar"}
               </Button>
             </DialogFooter>
           </form>
