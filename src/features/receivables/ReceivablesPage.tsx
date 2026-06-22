@@ -200,7 +200,7 @@ export default function ReceivablesPage() {
               <span>{formatDate(r.data_prevista)}</span>
               <button
                 title="Editar data de vencimento"
-                className="text-muted-foreground hover:text-navy"
+                className="text-navy/50 hover:text-navy transition-colors"
                 onClick={() => { setEditingDue(r); setEditDueVal(r.data_prevista); }}
               >
                 <Pencil className="h-3.5 w-3.5" />
@@ -213,7 +213,7 @@ export default function ReceivablesPage() {
               {r.data_recebimento && (
                 <button
                   title="Editar data de recebimento"
-                  className="text-muted-foreground hover:text-navy"
+                  className="text-navy/50 hover:text-navy transition-colors"
                   onClick={() => { setEditingDate(r); setEditDateVal(r.data_recebimento!); }}
                 >
                   <Pencil className="h-3.5 w-3.5" />
